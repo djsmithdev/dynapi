@@ -5,7 +5,7 @@ import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const port = process.env.PORT || 3000;
+  const port = process.env.PORT || 4000;
   
   // Security configurations
   app.use(helmet({
@@ -27,7 +27,7 @@ async function bootstrap() {
 
   // Enable CORS with specific origins
   app.enableCors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3001'],
+    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:4001'],
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'X-API-Key', 'Authorization'],
     credentials: true,
