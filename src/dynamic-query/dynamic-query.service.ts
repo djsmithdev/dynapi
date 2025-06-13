@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AgentLogComponent } from '../common/agentlog.component';
 import { QueryFilter, QueryParams, QueryResult } from './interfaces/query.interface';
+import { CreateParams, UpdateParams, DeleteParams, CrudResult } from './interfaces/crud.interface';
 
 @Injectable()
 export class DynamicQueryService {
@@ -207,5 +208,314 @@ export class DynamicQueryService {
 
   getAllowedTables(): string[] {
     return Array.from(this.allowedTables);
+  }
+
+  // =============================================
+  // CRUD Operations
+  // =============================================
+
+  async createRecord(params: CreateParams): Promise<CrudResult> {
+    this.validateTable(params.table);
+    this.validateDataForInsert(params.data);
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const columns = Object.keys(params.data);
+      const values = Object.values(params.data);
+      const placeholders = values.map((_, index) => `$${index + 1}`).join(', ');
+      
+      // Build INSERT query
+      const insertQuery = `
+        INSERT INTO "${params.table}" (${columns.map(col => `"${col}"`).join(', ')})
+        VALUES (${placeholders})
+        ${params.returnColumns ? `RETURNING ${params.returnColumns.map(col => `"${col}"`).join(', ')}` : 'RETURNING *'}
+      `;
+
+      this.agentLog.debug(`Executing CREATE: ${insertQuery.replace(/\$\d+/g, '?')}`);
+      
+      const result = await queryRunner.query(insertQuery, values);
+      
+      await queryRunner.commitTransaction();
+
+      const crudResult: CrudResult = {
+        success: true,
+        affectedRows: result.length,
+        data: result,
+        message: `Successfully created ${result.length} record(s) in ${params.table}`,
+        operation: 'CREATE',
+        table: params.table,
+        timestamp: new Date().toISOString(),
+      };
+
+      this.agentLog.log(`CREATE operation completed: ${params.table}, ${result.length} records created`);
+      return crudResult;
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.agentLog.error(`CREATE operation failed for table ${params.table}`, error.stack);
+      throw new BadRequestException(`Create operation failed: ${error.message}`);
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async updateRecord(params: UpdateParams): Promise<CrudResult> {
+    this.validateTable(params.table);
+    this.validateDataForUpdate(params.data);
+    this.validateUpdateFilters(params.filters);
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const setClause = Object.keys(params.data)
+        .map((key, index) => `"${key}" = $${index + 1}`)
+        .join(', ');
+      
+      const values = Object.values(params.data);
+      const { whereClause, whereValues } = this.buildCrudWhereClause(params.filters, values.length);
+      
+      const updateQuery = `
+        UPDATE "${params.table}"
+        SET ${setClause}
+        ${whereClause}
+        ${params.returnColumns ? `RETURNING ${params.returnColumns.map(col => `"${col}"`).join(', ')}` : 'RETURNING *'}
+      `;
+
+      this.agentLog.debug(`Executing UPDATE: ${updateQuery.replace(/\$\d+/g, '?')}`);
+      
+      const result = await queryRunner.query(updateQuery, [...values, ...whereValues]);
+      
+      await queryRunner.commitTransaction();
+
+      const crudResult: CrudResult = {
+        success: true,
+        affectedRows: result.length,
+        data: result,
+        message: `Successfully updated ${result.length} record(s) in ${params.table}`,
+        operation: 'UPDATE',
+        table: params.table,
+        timestamp: new Date().toISOString(),
+      };
+
+      this.agentLog.log(`UPDATE operation completed: ${params.table}, ${result.length} records updated`);
+      return crudResult;
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.agentLog.error(`UPDATE operation failed for table ${params.table}`, error.stack);
+      throw new BadRequestException(`Update operation failed: ${error.message}`);
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async deleteRecord(params: DeleteParams): Promise<CrudResult> {
+    this.validateTable(params.table);
+    this.validateUpdateFilters(params.filters);
+
+    // Prevent accidental deletion of all records
+    if (params.filters.length === 0) {
+      throw new BadRequestException('DELETE operations require at least one filter to prevent accidental data loss');
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const { whereClause, whereValues } = this.buildCrudWhereClause(params.filters);
+      
+      const deleteQuery = `
+        DELETE FROM "${params.table}"
+        ${whereClause}
+        ${params.returnColumns ? `RETURNING ${params.returnColumns.map(col => `"${col}"`).join(', ')}` : 'RETURNING *'}
+      `;
+
+      this.agentLog.debug(`Executing DELETE: ${deleteQuery.replace(/\$\d+/g, '?')}`);
+      
+      const result = await queryRunner.query(deleteQuery, whereValues);
+      
+      await queryRunner.commitTransaction();
+
+      const crudResult: CrudResult = {
+        success: true,
+        affectedRows: result.length,
+        data: result,
+        message: `Successfully deleted ${result.length} record(s) from ${params.table}`,
+        operation: 'DELETE',
+        table: params.table,
+        timestamp: new Date().toISOString(),
+      };
+
+      this.agentLog.log(`DELETE operation completed: ${params.table}, ${result.length} records deleted`);
+      return crudResult;
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.agentLog.error(`DELETE operation failed for table ${params.table}`, error.stack);
+      throw new BadRequestException(`Delete operation failed: ${error.message}`);
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  // =============================================
+  // Helper Methods for CRUD
+  // =============================================
+
+  private validateTable(table: string): void {
+    if (!this.allowedTables.has(table)) {
+      throw new ForbiddenException(`Table '${table}' is not accessible`);
+    }
+  }
+
+  private validateDataForInsert(data: Record<string, any>): void {
+    if (!data || Object.keys(data).length === 0) {
+      throw new BadRequestException('Insert data cannot be empty');
+    }
+
+    // Check for forbidden columns
+    Object.keys(data).forEach(column => {
+      if (this.forbiddenColumns.has(column.toLowerCase())) {
+        throw new ForbiddenException(`Column '${column}' is not accessible for modification`);
+      }
+    });
+
+    // Validate data types and prevent SQL injection
+    Object.entries(data).forEach(([key, value]) => {
+      this.validateColumnName(key);
+      this.validateColumnValue(value);
+    });
+  }
+
+  private validateDataForUpdate(data: Record<string, any>): void {
+    if (!data || Object.keys(data).length === 0) {
+      throw new BadRequestException('Update data cannot be empty');
+    }
+
+    // Check for forbidden columns
+    Object.keys(data).forEach(column => {
+      if (this.forbiddenColumns.has(column.toLowerCase())) {
+        throw new ForbiddenException(`Column '${column}' is not accessible for modification`);
+      }
+    });
+
+    // Validate data types and prevent SQL injection
+    Object.entries(data).forEach(([key, value]) => {
+      this.validateColumnName(key);
+      this.validateColumnValue(value);
+    });
+  }
+
+  private validateUpdateFilters(filters: QueryFilter[]): void {
+    if (!filters || filters.length === 0) {
+      return;
+    }
+
+    filters.forEach(filter => {
+      this.validateColumnName(filter.column);
+      if (filter.value !== undefined) {
+        this.validateColumnValue(filter.value);
+      }
+    });
+  }
+
+  private validateColumnName(columnName: string): void {
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(columnName)) {
+      throw new BadRequestException(`Invalid column name: ${columnName}`);
+    }
+  }
+
+  private validateColumnValue(value: any): void {
+    if (typeof value === 'string') {
+      // Check for SQL injection patterns
+      const sqlInjectionPatterns = [
+        /;\s*(drop|delete|insert|update|create|alter)\s/i,
+        /union\s+select/i,
+        /--/,
+        /\/\*/,
+        /\*\//,
+      ];
+
+      sqlInjectionPatterns.forEach(pattern => {
+        if (pattern.test(value)) {
+          throw new BadRequestException('Invalid data: potential SQL injection detected');
+        }
+      });
+    }
+  }
+
+  private buildCrudWhereClause(filters: QueryFilter[], startIndex: number = 0): { whereClause: string; whereValues: any[] } {
+    if (!filters || filters.length === 0) {
+      return { whereClause: '', whereValues: [] };
+    }
+
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let paramIndex = startIndex + 1;
+
+    filters.forEach(filter => {
+      const column = `"${filter.column}"`;
+      const operator = filter.operator;
+
+      switch (operator) {
+        case 'eq':
+          conditions.push(`${column} = $${paramIndex++}`);
+          values.push(filter.value);
+          break;
+        case 'ne':
+          conditions.push(`${column} != $${paramIndex++}`);
+          values.push(filter.value);
+          break;
+        case 'gt':
+          conditions.push(`${column} > $${paramIndex++}`);
+          values.push(filter.value);
+          break;
+        case 'gte':
+          conditions.push(`${column} >= $${paramIndex++}`);
+          values.push(filter.value);
+          break;
+        case 'lt':
+          conditions.push(`${column} < $${paramIndex++}`);
+          values.push(filter.value);
+          break;
+        case 'lte':
+          conditions.push(`${column} <= $${paramIndex++}`);
+          values.push(filter.value);
+          break;
+        case 'like':
+          conditions.push(`${column} ILIKE $${paramIndex++}`);
+          values.push(`%${filter.value}%`);
+          break;
+        case 'in':
+          const inValues = Array.isArray(filter.value) ? filter.value : filter.value.split(',');
+          const inPlaceholders = inValues.map(() => `$${paramIndex++}`).join(', ');
+          conditions.push(`${column} IN (${inPlaceholders})`);
+          values.push(...inValues);
+          break;
+        case 'not_in':
+          const notInValues = Array.isArray(filter.value) ? filter.value : filter.value.split(',');
+          const notInPlaceholders = notInValues.map(() => `$${paramIndex++}`).join(', ');
+          conditions.push(`${column} NOT IN (${notInPlaceholders})`);
+          values.push(...notInValues);
+          break;
+        case 'is_null':
+          conditions.push(`${column} IS NULL`);
+          break;
+        case 'is_not_null':
+          conditions.push(`${column} IS NOT NULL`);
+          break;
+      }
+    });
+
+    return {
+      whereClause: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '',
+      whereValues: values
+    };
   }
 } 

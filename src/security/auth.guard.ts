@@ -5,20 +5,35 @@ import { Request } from 'express';
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
-  private readonly validApiKeys: Set<string>;
+  private validApiKeys: Set<string>;
 
   constructor(
     private configService: ConfigService,
     private agentLog: AgentLogComponent,
   ) {
-    // Initialize with API keys from environment
-    const apiKeys = this.configService.get('API_KEYS', 'dynamicapi-dev-key,dynamicapi-prod-key').split(',').filter(key => key.length > 0);
-    this.validApiKeys = new Set(apiKeys);
+    this.initializeApiKeys();
+  }
+
+  private initializeApiKeys(): void {
+    const apiKeysConfig = this.configService.get('API_KEYS', '[]');
+    
+    try {
+      const parsedKeys = JSON.parse(apiKeysConfig);
+      if (Array.isArray(parsedKeys)) {
+        const keys = parsedKeys.map((config: any) => config.key).filter(key => key && key.length > 0);
+        this.validApiKeys = new Set(keys);
+        this.agentLog.log(`Initialized ${this.validApiKeys.size} API keys for authentication`);
+      } else {
+        this.agentLog.error('API_KEYS must be a JSON array of key configurations');
+        this.validApiKeys = new Set();
+      }
+    } catch (error) {
+      this.agentLog.error('Failed to parse API_KEYS configuration. Expected JSON format.', error.stack);
+      this.validApiKeys = new Set();
+    }
     
     if (this.validApiKeys.size === 0) {
-      this.agentLog.error('No API keys configured in API_KEYS environment variable');
-    } else {
-      this.agentLog.log(`Initialized ${this.validApiKeys.size} API keys for authentication`);
+      this.agentLog.error('No valid API keys configured in API_KEYS environment variable');
     }
   }
 

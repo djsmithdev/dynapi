@@ -43,7 +43,7 @@ export class DynamicQueryController {
     }
   }
 
-  @Get(':table/:columns')
+  @Get('query/:table/:columns')
   async queryData(
     @Param('table') table: string,
     @Param('columns') columns: string,

@@ -107,10 +107,9 @@ DB_SSL=false                # Enable SSL (true for production)
 
 #### **Security Configuration**
 ```bash
-# API Keys for authentication (comma-separated)
-# Generate strong, unique keys for each environment
-# Example: openssl rand -hex 32
-API_KEYS=dev-key-replace-me,prod-key-replace-me,client-key-replace-me
+# API Keys for authentication (JSON format with embedded permissions)
+# Generate strong, unique keys for each environment: openssl rand -hex 32
+API_KEYS=[{"key":"admin-key-replace-me","permissions":{"allowedTables":["*"],"allowedOperations":["CREATE","UPDATE","DELETE"],"maxRecordsPerOperation":100}},{"key":"editor-key-replace-me","permissions":{"allowedTables":["specific-tables"],"allowedOperations":["CREATE","UPDATE","DELETE"],"maxRecordsPerOperation":50}},{"key":"readonly-key-replace-me"}]
 
 # Allowed Origins for CORS (comma-separated)
 # Add all domains that will access your API
@@ -144,8 +143,8 @@ DB_PASSWORD=secure_production_password
 DB_DATABASE=your_prod_database
 DB_SSL=true
 
-# Production Security
-API_KEYS=secure-prod-key-1,secure-prod-key-2,client-api-key
+# Production Security (JSON format with permissions)
+API_KEYS=[{"key":"secure-prod-admin","permissions":{"allowedTables":["*"],"allowedOperations":["CREATE","UPDATE","DELETE"],"maxRecordsPerOperation":100}},{"key":"secure-prod-editor","permissions":{"allowedTables":["specific-tables"],"allowedOperations":["CREATE","UPDATE","DELETE"],"maxRecordsPerOperation":50}},{"key":"client-readonly-key"}]
 ALLOWED_ORIGINS=https://yourapp.com,https://admin.yourapp.com
 DETAILED_ERRORS=false
 
@@ -180,6 +179,47 @@ Adjust rate limiting based on your expected traffic patterns:
 4. **Enable SSL (DB_SSL=true) for production databases**
 5. **Restrict ALLOWED_ORIGINS to your actual domains in production**
 6. **Set DETAILED_ERRORS=false in production for security**
+
+## 🔑 API Key Configuration
+
+### Unified JSON Format
+
+DynAPI uses a modern JSON-based API key configuration that embeds permissions directly:
+
+```json
+API_KEYS=[
+  {
+    "key": "admin-super-key-2024",
+    "permissions": {
+      "allowedTables": ["*"],
+      "allowedOperations": ["CREATE", "UPDATE", "DELETE"],
+      "maxRecordsPerOperation": 100,
+      "rateLimitOverride": {
+        "ttl": 60000,
+        "limit": 200
+      }
+    }
+  },
+  {
+    "key": "editor-limited-key-2024",
+    "permissions": {
+      "allowedTables": ["certCerts", "agtAgentTypes"],
+      "allowedOperations": ["CREATE", "UPDATE", "DELETE"],
+      "maxRecordsPerOperation": 50
+    }
+  },
+  {
+    "key": "readonly-client-key-2024"
+  }
+]
+```
+
+### Key Types
+
+- **Admin Keys**: Full access with `allowedTables: ["*"]`
+- **Editor Keys**: Limited to specific tables and operations
+- **Read-Only Keys**: No `permissions` object - read access only
+- **Custom Rate Limits**: Optional `rateLimitOverride` per key
 
 ## 🔌 API Usage
 
