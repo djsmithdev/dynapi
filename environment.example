@@ -29,7 +29,7 @@ DB_SSL=false
 
 # API Keys for authentication (JSON format with embedded permissions)
 # Generate strong, unique keys for each environment: openssl rand -hex 32
-API_KEYS=[{"key":"admin-key-replace-me","permissions":{"allowedTables":["*"],"allowedOperations":["CREATE","UPDATE","DELETE"],"maxRecordsPerOperation":100,"rateLimitOverride":{"ttl":60000,"limit":200}}},{"key":"editor-key-replace-me","permissions":{"allowedTables":["chrAncestries","chrAttributes","chrBloodlines"],"allowedOperations":["CREATE","UPDATE","DELETE"],"maxRecordsPerOperation":50}},{"key":"readonly-key-replace-me"}]
+API_KEYS=[{"key":"admin-key-replace-me","permissions":{"allowedTables":["*"],"allowedOperations":["CREATE","UPDATE","DELETE"],"maxRecordsPerOperation":100,"rateLimitOverride":{"ttl":60000,"limit":200}}}]
 
 # Allowed Origins for CORS (comma-separated)
 # Add all domains that will access your API
@@ -61,7 +61,7 @@ DETAILED_ERRORS=true
 # DB_PASSWORD=secure_production_password
 # DB_DATABASE=your_prod_database
 # DB_SSL=true
-# API_KEYS=[{"key":"secure-prod-admin","permissions":{"allowedTables":["*"],"allowedOperations":["CREATE","UPDATE","DELETE"],"maxRecordsPerOperation":100}},{"key":"secure-prod-editor","permissions":{"allowedTables":["specific-tables"],"allowedOperations":["CREATE","UPDATE","DELETE"],"maxRecordsPerOperation":50}},{"key":"client-readonly-key"}]
+# API_KEYS=[{"key":"secure-prod-admin","permissions":{"allowedTables":["*"],"allowedOperations":["CREATE","UPDATE","DELETE"],"maxRecordsPerOperation":100}}]
 # ALLOWED_ORIGINS=https://yourapp.com,https://admin.yourapp.com
 # DETAILED_ERRORS=false
 

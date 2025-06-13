@@ -11,6 +11,7 @@ A secure, high-performance NestJS-based API for accessing PostgreSQL databases w
 - [API Usage](#-api-usage)
 - [Security](#-security)
 - [Rate Limiting](#-rate-limiting)
+- [Audit Logging](#-audit-logging)
 - [Examples](#-examples)
 - [Development](#-development)
 - [Deployment](#-deployment)
@@ -20,12 +21,15 @@ A secure, high-performance NestJS-based API for accessing PostgreSQL databases w
 
 - **🔒 Secure by Default**: All API endpoints require authentication
 - **🚀 Dynamic Queries**: Query any table with custom column selection and filtering
+- **📝 Full CRUD Operations**: Create, Read, Update, Delete with granular permissions
 - **🛡️ Comprehensive Security**: API key authentication, input validation, SQL injection protection
+- **📋 Audit Logging**: Complete audit trail for all write operations with statistics
 - **⚡ Rate Limiting**: Configurable request throttling with environment variables
 - **🌐 CORS Support**: Configurable cross-origin resource sharing
 - **📊 Database Agnostic**: Works with any PostgreSQL database
 - **🔍 Advanced Filtering**: 11 filter operators (eq, ne, gt, gte, lt, lte, like, in, not_in, is_null, is_not_null)
 - **📄 Pagination & Sorting**: Built-in support for limit, offset, and ordering
+- **🔐 Permission System**: Granular table and operation-level access control
 - **📝 Minimal Logging**: Privacy-focused logging with IP masking
 
 ## 🚀 Quick Start
@@ -50,7 +54,12 @@ A secure, high-performance NestJS-based API for accessing PostgreSQL databases w
 
 4. **Test the API**
    ```bash
+   # Test read operations
    curl -H "X-API-Key: your-api-key" "http://localhost:4000/api/tables"
+   
+   # Test write operations (requires write permissions)
+   curl -X POST -H "X-API-Key: your-write-key" -H "Content-Type: application/json" \
+     -d '{"data":[{"name":"test"}]}' "http://localhost:4000/api/your_table"
    ```
 
 ## 📦 Installation
@@ -119,7 +128,7 @@ ALLOWED_ORIGINS=http://localhost:4000,http://localhost:4001,https://yourdomain.c
 # THROTTLE_TTL: Time window in milliseconds (default: 900000 = 15 minutes)
 # THROTTLE_LIMIT: Maximum requests per time window (default: 1000)
 THROTTLE_TTL=900000         # Time window in milliseconds (15 minutes)
-THROTTLE_LIMIT=1000         # Max requests per window
+THROTTLE_LIMIT=500         # Max requests per window
 ```
 
 #### **Optional Configuration**
@@ -244,21 +253,94 @@ curl "http://localhost:4000/api/tables?apiKey=your-api-key"
 
 ### Core Endpoints
 
-#### **List All Tables**
+#### **Read Operations**
+
+##### **List All Tables**
 ```bash
 GET /api/tables
 ```
 Returns all available database tables.
 
-#### **Get Table Schema**
+##### **Get Table Schema**
 ```bash
 GET /api/tables/{table}/schema
 ```
 Returns column information for a specific table.
 
-#### **Dynamic Data Query**
+##### **Dynamic Data Query**
 ```bash
-GET /api/{table}/{columns}?[filters]&[pagination]&[sorting]
+GET /api/query/{table}/{columns}?[filters]&[pagination]&[sorting]
+```
+
+#### **Write Operations** 
+
+*Note: Write operations require API keys with explicit `permissions` configuration*
+
+##### **Create Records**
+```bash
+POST /api/{table}
+Content-Type: application/json
+
+{
+  "data": [
+    {"column1": "value1", "column2": "value2"},
+    {"column1": "value3", "column2": "value4"}
+  ]
+}
+```
+
+##### **Update Records**
+```bash
+PUT /api/{table}
+Content-Type: application/json
+
+{
+  "filters": "id:eq:123",
+  "data": {"column1": "new_value", "column2": "updated_value"}
+}
+```
+
+##### **Delete Records**
+```bash
+DELETE /api/{table}
+Content-Type: application/json
+
+{
+  "filters": "id:eq:123"
+}
+```
+
+#### **Audit Operations**
+
+##### **Get Audit Logs**
+```bash
+POST /api/audit/logs
+Content-Type: application/json
+
+{
+  "limit": 100,
+  "offset": 0,
+  "filters": {
+    "operation": "CREATE",
+    "table_name": "users",
+    "start_date": "2023-01-01",
+    "end_date": "2023-12-31"
+  }
+}
+```
+
+##### **Get Audit Statistics**
+```bash
+POST /api/audit/statistics
+Content-Type: application/json
+
+{
+  "group_by": ["operation", "table_name"],
+  "filters": {
+    "start_date": "2023-01-01",
+    "end_date": "2023-12-31"
+  }
+}
 ```
 
 ### Query Parameters
@@ -304,11 +386,48 @@ GET /api/{table}/{columns}?[filters]&[pagination]&[sorting]
 ### Multi-Layer Security Architecture
 
 1. **API Key Authentication**: Required for all endpoints
-2. **Input Validation**: SQL injection and XSS protection
-3. **Rate Limiting**: Configurable request throttling
-4. **CORS Protection**: Restricted cross-origin access
-5. **Security Headers**: Helmet.js security headers
-6. **IP Masking**: Privacy-focused logging
+2. **Permission-Based Access Control**: Granular table and operation permissions
+3. **Input Validation**: SQL injection and XSS protection
+4. **Rate Limiting**: Configurable request throttling
+5. **CORS Protection**: Restricted cross-origin access
+6. **Security Headers**: Helmet.js security headers
+7. **IP Masking**: Privacy-focused logging
+8. **Audit Logging**: Complete audit trail for all write operations
+
+### Write Permissions
+
+Write operations (CREATE, UPDATE, DELETE) require API keys with explicit `permissions` configuration:
+
+```json
+{
+  "key": "your-api-key",
+  "permissions": {
+    "allowedTables": ["users", "products", "orders"],
+    "allowedOperations": ["CREATE", "UPDATE", "DELETE"],
+    "maxRecordsPerOperation": 100,
+    "rateLimitOverride": {
+      "ttl": 60000,
+      "limit": 200
+    }
+  }
+}
+```
+
+#### **Permission Levels**
+- **Admin Keys**: `"allowedTables": ["*"]` - Full access to all tables
+- **Editor Keys**: `"allowedTables": ["table1", "table2"]` - Limited to specific tables
+- **Read-Only Keys**: No `permissions` object - Read access only
+
+#### **Operation Types**
+- `CREATE`: INSERT new records
+- `UPDATE`: Modify existing records
+- `DELETE`: Remove records
+
+#### **Security Features**
+- **Transaction Safety**: All write operations use database transactions
+- **Input Validation**: Automatic sanitization and validation
+- **Audit Trail**: Every write operation is logged with full context
+- **Rate Limiting**: Per-key rate limits with optional overrides
 
 ### Security Headers
 - Content Security Policy (CSP)
@@ -339,6 +458,49 @@ THROTTLE_LIMIT=2000
 THROTTLE_TTL=900000
 THROTTLE_LIMIT=500
 ```
+
+## 📋 Audit Logging
+
+### Comprehensive Audit Trail
+
+DynAPI automatically logs all write operations with complete context for security and compliance:
+
+#### **Audit Log Contents**
+- **Operation Details**: CREATE, UPDATE, DELETE with affected row counts
+- **Data Context**: Filters used, data modified, timestamps
+- **Security Information**: API key (masked), IP address, user agent
+- **Database Information**: Table name, column changes, success/failure status
+
+#### **Audit Features**
+- **Automatic Logging**: All write operations logged by default
+- **Secure Storage**: Audit logs stored in dedicated `dynapi_audit_log` table
+- **Query Capabilities**: Full search and filtering of audit records
+- **Statistics Generation**: Aggregate reports by operation, table, time period
+- **Privacy Protection**: IP addresses masked in logs for privacy compliance
+
+#### **Audit Table Schema**
+```sql
+CREATE TABLE dynapi_audit_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  api_key VARCHAR(64) NOT NULL,                -- Masked API key
+  operation VARCHAR(10) NOT NULL,              -- CREATE, UPDATE, DELETE
+  table_name VARCHAR(100) NOT NULL,            -- Target table
+  affected_rows INTEGER NOT NULL DEFAULT 0,    -- Number of rows changed
+  filters JSONB,                              -- Query filters used
+  data JSONB,                                 -- Data that was modified
+  ip_address INET,                            -- Client IP (masked)
+  user_agent TEXT,                            -- Client user agent
+  timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  success BOOLEAN NOT NULL DEFAULT true,      -- Operation success status
+  error_message TEXT                          -- Error details if failed
+);
+```
+
+#### **Compliance Benefits**
+- **SOX Compliance**: Complete audit trail for financial data changes
+- **GDPR Compliance**: Privacy-focused logging with data masking
+- **HIPAA Compliance**: Secure audit logging for healthcare data
+- **PCI DSS**: Detailed logging for payment card industry requirements
 
 ## 📚 Examples
 
@@ -388,7 +550,125 @@ curl -H "X-API-Key: your-key" \
   "http://localhost:4000/api/customers/company_name?filters=company_name:like:%Tech%"
 ```
 
+### CRUD Operations Examples
+
+*Note: CRUD operations require API keys with write permissions*
+
+#### **Create Records (INSERT)**
+```bash
+# Single record
+curl -X POST \
+  -H "X-API-Key: your-write-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": [
+      {
+        "username": "newuser",
+        "email": "newuser@example.com",
+        "status": "active"
+      }
+    ]
+  }' \
+  "http://localhost:4000/api/users"
+
+# Multiple records
+curl -X POST \
+  -H "X-API-Key: your-write-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": [
+      {"name": "Product A", "price": 99.99, "category_id": 1},
+      {"name": "Product B", "price": 149.99, "category_id": 2},
+      {"name": "Product C", "price": 79.99, "category_id": 1}
+    ]
+  }' \
+  "http://localhost:4000/api/products"
+```
+
+#### **Update Records (UPDATE)**
+```bash
+# Update single record by ID
+curl -X PUT \
+  -H "X-API-Key: your-write-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filters": "id:eq:123",
+    "data": {
+      "status": "inactive",
+      "updated_at": "2023-12-01T10:00:00Z"
+    }
+  }' \
+  "http://localhost:4000/api/users"
+
+# Update multiple records with conditions
+curl -X PUT \
+  -H "X-API-Key: your-write-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filters": "category_id:eq:1,price:lt:100",
+    "data": {
+      "discount": 10,
+      "sale_price": "price * 0.9"
+    }
+  }' \
+  "http://localhost:4000/api/products"
+```
+
+#### **Delete Records (DELETE)**
+```bash
+# Delete specific record
+curl -X DELETE \
+  -H "X-API-Key: your-write-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filters": "id:eq:123"
+  }' \
+  "http://localhost:4000/api/users"
+
+# Delete multiple records with conditions
+curl -X DELETE \
+  -H "X-API-Key: your-write-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filters": "status:eq:inactive,created_at:lt:2023-01-01"
+  }' \
+  "http://localhost:4000/api/old_records"
+```
+
+#### **Audit Operations Examples**
+```bash
+# Get recent audit logs
+curl -X POST \
+  -H "X-API-Key: your-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "limit": 50,
+    "offset": 0,
+    "filters": {
+      "operation": "CREATE",
+      "table_name": "users",
+      "start_date": "2023-12-01"
+    }
+  }' \
+  "http://localhost:4000/api/audit/logs"
+
+# Get operation statistics
+curl -X POST \
+  -H "X-API-Key: your-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "group_by": ["operation", "table_name"],
+    "filters": {
+      "start_date": "2023-01-01",
+      "end_date": "2023-12-31"
+    }
+  }' \
+  "http://localhost:4000/api/audit/statistics"
+```
+
 ### Response Format
+
+#### **Read Operations Response**
 ```json
 {
   "data": [...],
@@ -402,6 +682,29 @@ curl -H "X-API-Key: your-key" \
     "columns": ["username", "email"],
     "filters": [...]
   }
+}
+```
+
+#### **Write Operations Response**
+```json
+{
+  "success": true,
+  "operation": "CREATE",
+  "table": "users",
+  "affectedRows": 2,
+  "data": [...],
+  "auditId": "550e8400-e29b-41d4-a716-446655440000",
+  "timestamp": "2023-12-01T10:00:00.000Z"
+}
+```
+
+#### **Error Response**
+```json
+{
+  "success": false,
+  "error": "Insufficient permissions",
+  "details": "Write operations require explicit permissions",
+  "statusCode": 403
 }
 ```
 
@@ -437,13 +740,15 @@ src/
 ├── database/         # Database configuration
 ├── dynamic-query/    # Core API logic
 │   ├── interfaces/   # TypeScript interfaces
-│   ├── dynamic-query.controller.ts
-│   ├── dynamic-query.service.ts
+│   ├── dynamic-query.controller.ts    # Read operations
+│   ├── crud.controller.ts              # Write operations (CREATE, UPDATE, DELETE)
+│   ├── dynamic-query.service.ts        # Database service layer
 │   └── dynamic-query.module.ts
 ├── security/         # Security components
-│   ├── auth.guard.ts
-│   ├── validation.service.ts
-│   ├── security.middleware.ts
+│   ├── auth.guard.ts                   # API key authentication
+│   ├── write-permissions.service.ts    # Write permissions management
+│   ├── validation.service.ts           # Input validation
+│   ├── security.middleware.ts          # Security middleware
 │   └── security.module.ts
 └── main.ts          # Application entry point
 ```
