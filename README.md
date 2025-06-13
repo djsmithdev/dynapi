@@ -77,9 +77,16 @@ npm run start:dev
 
 ## ⚙️ Configuration
 
-### Environment Variables
+### Environment Configuration
 
-Create a `.env` file based on `environment.example`:
+Copy the example environment file and configure your settings:
+
+```bash
+cp environment.example .env
+# Edit .env with your actual values
+```
+
+### Environment Variables
 
 #### **Application Settings**
 ```bash
@@ -89,31 +96,90 @@ PORT=4000                    # Server port (default: 4000)
 
 #### **Database Configuration**
 ```bash
+# PostgreSQL database connection settings
 DB_HOST=localhost            # PostgreSQL host
-DB_PORT=5432                # PostgreSQL port
-DB_USERNAME=your_username    # Database username
-DB_PASSWORD=your_password    # Database password
+DB_PORT=5432                # PostgreSQL port  
+DB_USERNAME=your_postgres_username    # Database username
+DB_PASSWORD=your_postgres_password    # Database password
 DB_DATABASE=your_database    # Database name
 DB_SSL=false                # Enable SSL (true for production)
 ```
 
 #### **Security Configuration**
 ```bash
-# API Keys (comma-separated, generate with: openssl rand -hex 32)
+# API Keys for authentication (comma-separated)
+# Generate strong, unique keys for each environment
+# Example: openssl rand -hex 32
 API_KEYS=dev-key-replace-me,prod-key-replace-me,client-key-replace-me
 
-# CORS Origins (comma-separated)
+# Allowed Origins for CORS (comma-separated)
+# Add all domains that will access your API
 ALLOWED_ORIGINS=http://localhost:4000,http://localhost:4001,https://yourdomain.com
 
-# Rate Limiting
+# Rate Limiting Configuration
+# THROTTLE_TTL: Time window in milliseconds (default: 900000 = 15 minutes)
+# THROTTLE_LIMIT: Maximum requests per time window (default: 1000)
 THROTTLE_TTL=900000         # Time window in milliseconds (15 minutes)
 THROTTLE_LIMIT=1000         # Max requests per window
 ```
 
-#### **Optional Settings**
+#### **Optional Configuration**
 ```bash
+# Enable detailed error messages (set to false in production)
 DETAILED_ERRORS=true        # Show detailed errors (false in production)
 ```
+
+### Production Example Configuration
+
+For production deployment, use these recommended settings:
+
+```bash
+# Production Environment
+NODE_ENV=production
+PORT=4000
+DB_HOST=your-production-db-host.com
+DB_PORT=5432
+DB_USERNAME=production_user
+DB_PASSWORD=secure_production_password
+DB_DATABASE=your_prod_database
+DB_SSL=true
+
+# Production Security
+API_KEYS=secure-prod-key-1,secure-prod-key-2,client-api-key
+ALLOWED_ORIGINS=https://yourapp.com,https://admin.yourapp.com
+DETAILED_ERRORS=false
+
+# Production Rate Limiting (more restrictive)
+THROTTLE_TTL=900000    # 15 minutes
+THROTTLE_LIMIT=500     # 500 requests per 15 minutes
+```
+
+### Development Configuration
+
+For development, you can use more permissive settings:
+
+```bash
+# Development Rate Limiting (more permissive)
+THROTTLE_TTL=300000    # 5 minutes  
+THROTTLE_LIMIT=2000    # 2000 requests per 5 minutes
+```
+
+### Rate Limiting Guidelines
+
+Adjust rate limiting based on your expected traffic patterns:
+
+- **Production**: Lower limits (e.g., 500 requests per 15 minutes)
+- **Development**: Higher limits (e.g., 2000 requests per 5 minutes)  
+- **High-traffic APIs**: Consider shorter TTL with higher limits
+
+### Security Best Practices
+
+1. **Never commit your actual .env file to version control**
+2. **Generate strong API keys using**: `openssl rand -hex 32`
+3. **Use different API keys for development and production**
+4. **Enable SSL (DB_SSL=true) for production databases**
+5. **Restrict ALLOWED_ORIGINS to your actual domains in production**
+6. **Set DETAILED_ERRORS=false in production for security**
 
 ## 🔌 API Usage
 
