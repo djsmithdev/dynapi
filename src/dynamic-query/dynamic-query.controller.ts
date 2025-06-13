@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { DynamicQueryService } from './dynamic-query.service';
-import { QueryFilter, QueryParams } from './interfaces/query.interface';
+import { QueryFilter, QueryParams, QueryJoin } from './interfaces/query.interface';
 import { AgentLogComponent } from '../common/agentlog.component';
 import { ApiKeyGuard } from '../security/auth.guard';
 import { ValidationService } from '../security/validation.service';
@@ -66,6 +66,9 @@ export class DynamicQueryController {
       // Parse filters from query parameters
       const filters: QueryFilter[] = this.parseAndValidateFilters(queryParams);
 
+      // Parse joins from query parameters
+      const joins: QueryJoin[] = this.parseAndValidateJoins(queryParams);
+
       // Validate ordering parameters
       const orderBy = queryParams.orderBy || undefined;
       if (orderBy) {
@@ -77,6 +80,7 @@ export class DynamicQueryController {
         table,
         columns: columnsList,
         filters,
+        joins,
         limit: validatedPagination.limit,
         offset: validatedPagination.offset,
         orderBy,
@@ -86,7 +90,7 @@ export class DynamicQueryController {
       const result = await this.dynamicQueryService.executeQuery(params);
       
       // Log successful query (without sensitive data)
-      this.agentLog.log(`Secure query executed: table=${table}, columns=${Array.isArray(columnsList) ? columnsList.length : 'all'}, filters=${filters.length}, results=${result.data.length}`);
+      this.agentLog.log(`Secure query executed: table=${table}, columns=${Array.isArray(columnsList) ? columnsList.length : 'all'}, filters=${filters.length}, joins=${joins.length}, results=${result.data.length}`);
       
       return {
         ...result,
@@ -94,6 +98,7 @@ export class DynamicQueryController {
           table,
           columnsRequested: Array.isArray(columnsList) ? columnsList.length : 'all',
           filtersApplied: filters.length,
+          joinsApplied: joins.length,
           securityLevel: 'authenticated'
         }
       };
@@ -103,13 +108,58 @@ export class DynamicQueryController {
     }
   }
 
+  private parseAndValidateJoins(queryParams: any): QueryJoin[] {
+    const joins: QueryJoin[] = [];
+    
+    // Handle both single join and array of joins
+    const joinParams = queryParams.join ? 
+      (Array.isArray(queryParams.join) ? queryParams.join : [queryParams.join]) : 
+      [];
+
+    joinParams.forEach((joinParam: string) => {
+      // Format: localColumn:joinTable:joinColumn:selectColumns[:joinType]
+      // Example: regionID:mapRegions:regionID:regionName,regionDescription:LEFT
+      const parts = joinParam.split(':');
+      
+      if (parts.length < 4) {
+        throw new Error(`Invalid join format. Expected: localColumn:joinTable:joinColumn:selectColumns[:joinType]`);
+      }
+
+      const [localColumn, joinTable, joinColumn, selectColumnsStr, joinType] = parts;
+      const selectColumns = selectColumnsStr.split(',').map(col => col.trim());
+
+      // Validate all components
+      this.validationService.validateColumns(localColumn);
+      this.validationService.validateTableName(joinTable);
+      this.validationService.validateColumns(joinColumn);
+      selectColumns.forEach(col => this.validationService.validateColumns(col));
+
+      const join: QueryJoin = {
+        localColumn,
+        joinTable,
+        joinColumn,
+        selectColumns,
+        joinType: (joinType as 'INNER' | 'LEFT' | 'RIGHT') || 'LEFT'
+      };
+
+      joins.push(join);
+    });
+
+    // Limit number of joins to prevent overly complex queries
+    if (joins.length > 5) {
+      throw new Error('Too many joins (maximum 5 allowed)');
+    }
+
+    return joins;
+  }
+
   private parseAndValidateFilters(queryParams: any): QueryFilter[] {
     const filters: QueryFilter[] = [];
     const filterKeys = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'like', 'in', 'not_in', 'is_null', 'is_not_null'];
 
     for (const [key, value] of Object.entries(queryParams)) {
       // Skip non-filter parameters
-      if (['limit', 'offset', 'orderBy', 'orderDirection'].includes(key)) {
+      if (['limit', 'offset', 'orderBy', 'orderDirection', 'join'].includes(key)) {
         continue;
       }
 

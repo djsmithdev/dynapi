@@ -2,7 +2,7 @@ import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/com
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AgentLogComponent } from '../common/agentlog.component';
-import { QueryFilter, QueryParams, QueryResult } from './interfaces/query.interface';
+import { QueryFilter, QueryParams, QueryResult, QueryJoin } from './interfaces/query.interface';
 import { CreateParams, UpdateParams, DeleteParams, CrudResult } from './interfaces/crud.interface';
 
 @Injectable()
@@ -36,19 +36,26 @@ export class DynamicQueryService {
   async executeQuery(params: QueryParams): Promise<QueryResult> {
     this.validateQuery(params);
     
-    const { table, columns, filters, limit, offset, orderBy, orderDirection } = params;
+    const { table, columns, filters, joins, limit, offset, orderBy, orderDirection } = params;
     
     // Build the base query using raw SQL approach for more flexibility
-    let selectColumns = this.buildSelectColumns(columns);
+    let selectColumns = this.buildSelectColumns(columns, joins, table);
     let baseQuery = `SELECT ${selectColumns} FROM "${table}"`;
     let countQuery = `SELECT COUNT(*) as count FROM "${table}"`;
+    
+    // Add JOIN clauses
+    if (joins && joins.length > 0) {
+      const joinClauses = this.buildJoinClauses(joins, table);
+      baseQuery += joinClauses;
+      countQuery += joinClauses;
+    }
     
     const queryParams: any[] = [];
     let whereClause = '';
     
     // Apply filters
     if (filters && filters.length > 0) {
-      const { clause, params } = this.buildWhereClause(filters);
+      const { clause, params } = this.buildWhereClause(filters, joins, table);
       whereClause = clause;
       queryParams.push(...params);
     }
@@ -58,9 +65,10 @@ export class DynamicQueryService {
       countQuery += ` WHERE ${whereClause}`;
     }
     
-    // Apply ordering
+    // Apply ordering (handle joined table columns)
     if (orderBy) {
-      baseQuery += ` ORDER BY "${orderBy}" ${orderDirection || 'ASC'}`;
+      const orderByColumn = this.getQualifiedColumnName(orderBy, table, joins);
+      baseQuery += ` ORDER BY ${orderByColumn} ${orderDirection || 'ASC'}`;
     }
     
     // Get total count for pagination
@@ -88,11 +96,27 @@ export class DynamicQueryService {
   }
 
   private validateQuery(params: QueryParams): void {
-    const { table, columns } = params;
+    const { table, columns, joins } = params;
 
     // Validate table exists and is allowed
     if (!this.allowedTables.has(table)) {
       throw new ForbiddenException(`Table '${table}' is not accessible`);
+    }
+
+    // Validate joined tables
+    if (joins && joins.length > 0) {
+      joins.forEach(join => {
+        if (!this.allowedTables.has(join.joinTable)) {
+          throw new ForbiddenException(`Join table '${join.joinTable}' is not accessible`);
+        }
+        
+        // Validate join columns
+        [join.localColumn, join.joinColumn, ...join.selectColumns].forEach(column => {
+          if (this.forbiddenColumns.has(column.toLowerCase())) {
+            throw new ForbiddenException(`Column '${column}' is not accessible`);
+          }
+        });
+      });
     }
 
     // Validate columns
@@ -108,76 +132,113 @@ export class DynamicQueryService {
     });
   }
 
-  private buildSelectColumns(columns: string | string[]): string {
+  private buildSelectColumns(columns: string | string[], joins?: QueryJoin[], table?: string): string {
+    let selectParts: string[] = [];
+    
+    // Handle main table columns
     if (columns === '*' || (Array.isArray(columns) && columns.includes('*'))) {
-      return '*';
+      if (joins && joins.length > 0 && table) {
+        // When using joins with *, we need to qualify the main table columns
+        selectParts.push(`"${table}".*`);
+      } else {
+        selectParts.push('*');
+      }
+    } else {
+      const columnList = Array.isArray(columns) ? columns : [columns];
+      if (joins && joins.length > 0 && table) {
+        // Qualify main table columns when using joins
+        const mainColumns = columnList.map(col => `"${table}"."${col}"`);
+        selectParts.push(...mainColumns);
+      } else {
+        const mainColumns = columnList.map(col => `"${col}"`);
+        selectParts.push(...mainColumns);
+      }
     }
-
-    const columnList = Array.isArray(columns) ? columns : [columns];
-    return columnList.map(col => `"${col}"`).join(', ');
+    
+    // Add joined table columns
+    if (joins && joins.length > 0) {
+      joins.forEach(join => {
+        const joinedColumns = join.selectColumns.map(col => 
+          `"${join.joinTable}"."${col}" AS "${join.joinTable}_${col}"`
+        );
+        selectParts.push(...joinedColumns);
+      });
+    }
+    
+    return selectParts.join(', ');
   }
 
-  private buildWhereClause(filters: QueryFilter[]): { clause: string; params: any[] } {
+  private buildJoinClauses(joins: QueryJoin[], mainTable: string): string {
+    return joins.map(join => {
+      const joinType = join.joinType || 'LEFT';
+      return ` ${joinType} JOIN "${join.joinTable}" ON "${mainTable}"."${join.localColumn}" = "${join.joinTable}"."${join.joinColumn}"`;
+    }).join('');
+  }
+
+  private buildWhereClause(filters: QueryFilter[], joins?: QueryJoin[], table?: string): { clause: string; params: any[] } {
     const conditions: string[] = [];
     const params: any[] = [];
     let paramIndex = 1;
 
     filters.forEach((filter) => {
+      // Determine if this is a joined table column (we need the main table name for proper qualification)
+      const qualifiedColumn = this.getQualifiedColumnName(filter.column, table, joins);
+      
       switch (filter.operator) {
         case 'eq':
-          conditions.push(`"${filter.column}" = $${paramIndex}`);
+          conditions.push(`${qualifiedColumn} = $${paramIndex}`);
           params.push(filter.value);
           paramIndex++;
           break;
         case 'ne':
-          conditions.push(`"${filter.column}" != $${paramIndex}`);
+          conditions.push(`${qualifiedColumn} != $${paramIndex}`);
           params.push(filter.value);
           paramIndex++;
           break;
         case 'gt':
-          conditions.push(`"${filter.column}" > $${paramIndex}`);
+          conditions.push(`${qualifiedColumn} > $${paramIndex}`);
           params.push(filter.value);
           paramIndex++;
           break;
         case 'gte':
-          conditions.push(`"${filter.column}" >= $${paramIndex}`);
+          conditions.push(`${qualifiedColumn} >= $${paramIndex}`);
           params.push(filter.value);
           paramIndex++;
           break;
         case 'lt':
-          conditions.push(`"${filter.column}" < $${paramIndex}`);
+          conditions.push(`${qualifiedColumn} < $${paramIndex}`);
           params.push(filter.value);
           paramIndex++;
           break;
         case 'lte':
-          conditions.push(`"${filter.column}" <= $${paramIndex}`);
+          conditions.push(`${qualifiedColumn} <= $${paramIndex}`);
           params.push(filter.value);
           paramIndex++;
           break;
         case 'like':
-          conditions.push(`"${filter.column}" ILIKE $${paramIndex}`);
+          conditions.push(`${qualifiedColumn} ILIKE $${paramIndex}`);
           params.push(`%${filter.value}%`);
           paramIndex++;
           break;
         case 'in':
           if (Array.isArray(filter.value) && filter.value.length > 0) {
             const placeholders = filter.value.map(() => `$${paramIndex++}`).join(', ');
-            conditions.push(`"${filter.column}" IN (${placeholders})`);
+            conditions.push(`${qualifiedColumn} IN (${placeholders})`);
             params.push(...filter.value);
           }
           break;
         case 'not_in':
           if (Array.isArray(filter.value) && filter.value.length > 0) {
             const placeholders = filter.value.map(() => `$${paramIndex++}`).join(', ');
-            conditions.push(`"${filter.column}" NOT IN (${placeholders})`);
+            conditions.push(`${qualifiedColumn} NOT IN (${placeholders})`);
             params.push(...filter.value);
           }
           break;
         case 'is_null':
-          conditions.push(`"${filter.column}" IS NULL`);
+          conditions.push(`${qualifiedColumn} IS NULL`);
           break;
         case 'is_not_null':
-          conditions.push(`"${filter.column}" IS NOT NULL`);
+          conditions.push(`${qualifiedColumn} IS NOT NULL`);
           break;
         default:
           throw new BadRequestException(`Unsupported operator: ${filter.operator}`);
@@ -188,6 +249,25 @@ export class DynamicQueryService {
       clause: conditions.join(' AND '),
       params,
     };
+  }
+
+  private getQualifiedColumnName(column: string, mainTable?: string, joins?: QueryJoin[]): string {
+    // Check if column belongs to a joined table
+    if (joins) {
+      for (const join of joins) {
+        if (join.selectColumns.includes(column)) {
+          return `"${join.joinTable}"."${column}"`;
+        }
+      }
+    }
+    
+    // If we have joins and a main table, qualify the column with the main table
+    if (joins && joins.length > 0 && mainTable) {
+      return `"${mainTable}"."${column}"`;
+    }
+    
+    // Default to quoted column name (works for single table queries)
+    return `"${column}"`;
   }
 
   async getTableSchema(tableName: string): Promise<any[]> {

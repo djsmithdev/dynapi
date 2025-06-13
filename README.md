@@ -135,7 +135,7 @@ GET /api/tables/{table}/schema
 
 #### **Query Table Data**
 ```bash
-GET /api/query/{table}/{columns}?[filters]&[pagination]&[sorting]
+GET /api/query/{table}/{columns}?[filters]&[joins]&[pagination]&[sorting]
 ```
 
 ### Query Parameters
@@ -164,6 +164,22 @@ Format: `{column}_{operator}={value}`
 - `not_in` - Value not in list
 - `is_null` - Is null
 - `is_not_null` - Is not null
+
+#### **JOINs**
+Format: `join=localColumn:joinTable:joinColumn:selectColumns[:joinType]`
+
+**Join Types:** INNER, LEFT, RIGHT (default: LEFT)
+
+```bash
+# Single join
+?join=regionID:mapRegions:regionID:regionName
+
+# Multiple joins
+?join=regionID:mapRegions:regionID:regionName&join=constellationID:mapConstellations:constellationID:constellationName
+
+# With join type
+?join=regionID:mapRegions:regionID:regionName:INNER
+```
 
 #### **Pagination & Sorting**
 ```bash
@@ -194,6 +210,10 @@ curl -H "X-API-Key: your-key" \
 # Multiple filters with pagination
 curl -H "X-API-Key: your-key" \
   "http://localhost:4000/api/query/orders/*?status_eq=completed&total_gte=50&limit=20&orderBy=created_at&orderDirection=DESC"
+
+# JOIN example - Get Jita system with region and constellation names
+curl -H "X-API-Key: your-key" \
+  "http://localhost:4000/api/query/mapSolarSystems/solarSystemName,security?solarSystemName_like=Jita&join=regionID:mapRegions:regionID:regionName&join=constellationID:mapConstellations:constellationID:constellationName"
 ```
 
 ### Write Operations
