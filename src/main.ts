@@ -47,8 +47,8 @@ async function bootstrap() {
   
   await app.listen(port);
   Logger.log(`🚀 Warview SDE API running securely on: http://localhost:${port}`);
-  Logger.log(`🔒 Secure endpoints available at: http://localhost:${port}/secure`);
-  Logger.log(`📊 Public endpoints available at: http://localhost:${port}/tables`);
+  Logger.log(`🔒 All API endpoints require authentication: http://localhost:${port}/api`);
+  Logger.log(`📊 Secure database access available at: http://localhost:${port}/api/tables`);
 }
 
 bootstrap(); 

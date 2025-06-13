@@ -36,6 +36,12 @@ API_KEYS=dev-key-replace-me,prod-key-replace-me,client-key-replace-me
 # Add all domains that will access your API
 ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,https://yourdomain.com
 
+# Rate Limiting Configuration
+# THROTTLE_TTL: Time window in milliseconds (default: 900000 = 15 minutes)
+# THROTTLE_LIMIT: Maximum requests per time window (default: 1000)
+THROTTLE_TTL=900000
+THROTTLE_LIMIT=1000
+
 # -------------------------
 # Optional Configuration
 # -------------------------
@@ -60,6 +66,14 @@ DETAILED_ERRORS=true
 # ALLOWED_ORIGINS=https://yourapp.com,https://admin.yourapp.com
 # DETAILED_ERRORS=false
 
+# Rate limiting for production (more restrictive)
+# THROTTLE_TTL=900000    # 15 minutes
+# THROTTLE_LIMIT=500     # 500 requests per 15 minutes
+
+# Rate limiting for development (more permissive)
+# THROTTLE_TTL=300000    # 5 minutes  
+# THROTTLE_LIMIT=2000    # 2000 requests per 5 minutes
+
 # -------------------------
 # Security Notes
 # -------------------------
@@ -67,4 +81,8 @@ DETAILED_ERRORS=true
 # 2. Generate strong API keys using: openssl rand -hex 32
 # 3. Use different API keys for development and production
 # 4. Enable SSL (DB_SSL=true) for production databases
-# 5. Restrict ALLOWED_ORIGINS to your actual domains in production 
+# 5. Restrict ALLOWED_ORIGINS to your actual domains in production
+# 6. Adjust rate limiting based on your expected traffic:
+#    - Production: Lower limits (e.g., 500 requests per 15 minutes)
+#    - Development: Higher limits (e.g., 2000 requests per 5 minutes)
+#    - High-traffic APIs: Consider shorter TTL with higher limits 
