@@ -12,7 +12,7 @@ export class ApiKeyGuard implements CanActivate {
     private agentLog: AgentLogComponent,
   ) {
     // Initialize with API keys from environment
-    const apiKeys = this.configService.get('API_KEYS', 'warview-dev-key,warview-prod-key').split(',').filter(key => key.length > 0);
+    const apiKeys = this.configService.get('API_KEYS', 'dynamicapi-dev-key,dynamicapi-prod-key').split(',').filter(key => key.length > 0);
     this.validApiKeys = new Set(apiKeys);
     
     if (this.validApiKeys.size === 0) {

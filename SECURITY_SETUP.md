@@ -1,7 +1,7 @@
 # Security Configuration Guide
 
 ## Overview
-The Warview SDE API now includes comprehensive security features to prevent abuse and unauthorized access.
+The DynAPI now includes comprehensive security features to prevent abuse and unauthorized access.
 
 ## Security Layers Implemented
 
@@ -46,11 +46,11 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_USERNAME=your_username
 DB_PASSWORD=your_password
-DB_DATABASE=warview_sde
+DB_DATABASE=dynapi
 DB_SSL=false
 
 # Security Configuration
-API_KEYS=warview-dev-key-12345,warview-prod-key-67890,warview-admin-key-99999
+API_KEYS=dynapi-dev-key-12345,dynapi-prod-key-67890,dynapi-admin-key-99999
 ALLOWED_ORIGINS=http://localhost:3001,http://localhost:3002,https://your-frontend.com
 
 # Application Configuration
@@ -75,15 +75,15 @@ PORT=3000
 ### Secure API Access
 ```bash
 # Using X-API-Key header
-curl -H "X-API-Key: warview-dev-key-12345" \
+curl -H "X-API-Key: dynapi-dev-key-12345" \
   "http://localhost:3000/secure/mapSolarSystems/*?limit=10"
 
 # Using Authorization header
-curl -H "Authorization: Bearer warview-dev-key-12345" \
+curl -H "Authorization: Bearer dynapi-dev-key-12345" \
   "http://localhost:3000/secure/mapSolarSystems/*?fromSolarSystemID_eq=30000142"
 
 # Using query parameter
-curl "http://localhost:3000/secure/mapRegions/*?apiKey=warview-dev-key-12345&limit=20"
+curl "http://localhost:3000/secure/mapRegions/*?apiKey=dynapi-dev-key-12345&limit=20"
 ```
 
 ### Node.js Client Example
@@ -93,7 +93,7 @@ const axios = require('axios');
 const client = axios.create({
   baseURL: 'http://localhost:3000',
   headers: {
-    'X-API-Key': 'warview-dev-key-12345'
+    'X-API-Key': 'dynapi-dev-key-12345'
   }
 });
 

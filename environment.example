@@ -1,5 +1,5 @@
 # ==============================================
-# WARVIEW SDE API - Environment Configuration
+# DYNAMICAPI - Environment Configuration
 # Copy this file to .env and update with your actual values
 # ==============================================
 
@@ -20,7 +20,7 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_USERNAME=your_postgres_username
 DB_PASSWORD=your_postgres_password
-DB_DATABASE=evesde
+DB_DATABASE=your_database
 DB_SSL=false
 
 # -------------------------
@@ -60,7 +60,7 @@ DETAILED_ERRORS=true
 # DB_PORT=5432
 # DB_USERNAME=production_user
 # DB_PASSWORD=secure_production_password
-# DB_DATABASE=evesde_prod
+# DB_DATABASE=your_prod_database
 # DB_SSL=true
 # API_KEYS=secure-prod-key-1,secure-prod-key-2,client-api-key
 # ALLOWED_ORIGINS=https://yourapp.com,https://admin.yourapp.com

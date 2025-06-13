@@ -1,7 +1,7 @@
 {
-  "name": "warview-sde",
+  "name": "dynapi",
   "version": "1.0.0",
-  "description": "Warview SDE Application",
+  "description": "A secure, high-performance NestJS-based API for accessing PostgreSQL databases with dynamic query capabilities",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
