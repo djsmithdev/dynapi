@@ -3,7 +3,7 @@ import { DynamicQueryService } from './dynamic-query.service';
 import { QueryFilter, QueryParams } from './interfaces/query.interface';
 import { AgentLogComponent } from '../common/agentlog.component';
 
-@Controller()
+@Controller('api')
 export class DynamicQueryController {
   constructor(
     private readonly dynamicQueryService: DynamicQueryService,

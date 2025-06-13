@@ -1,0 +1,70 @@
+# ==============================================
+# WARVIEW SDE API - Environment Configuration
+# Copy this file to .env and update with your actual values
+# ==============================================
+
+# -------------------------
+# Application Settings
+# -------------------------
+# Environment: development, production, test
+NODE_ENV=development
+
+# Port the server will run on
+PORT=3000
+
+# -------------------------
+# Database Configuration
+# -------------------------
+# PostgreSQL database connection settings
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=your_postgres_username
+DB_PASSWORD=your_postgres_password
+DB_DATABASE=evesde
+DB_SSL=false
+
+# -------------------------
+# Security Configuration
+# -------------------------
+
+# API Keys for authentication (comma-separated)
+# Generate strong, unique keys for each environment
+# Example: openssl rand -hex 32
+API_KEYS=dev-key-replace-me,prod-key-replace-me,client-key-replace-me
+
+# Allowed Origins for CORS (comma-separated)
+# Add all domains that will access your API
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,https://yourdomain.com
+
+# -------------------------
+# Optional Configuration
+# -------------------------
+
+# Enable detailed error messages (set to false in production)
+DETAILED_ERRORS=true
+
+# -------------------------
+# Production Example Values
+# -------------------------
+# Uncomment and modify for production deployment:
+
+# NODE_ENV=production
+# PORT=3000
+# DB_HOST=your-production-db-host.com
+# DB_PORT=5432
+# DB_USERNAME=production_user
+# DB_PASSWORD=secure_production_password
+# DB_DATABASE=evesde_prod
+# DB_SSL=true
+# API_KEYS=secure-prod-key-1,secure-prod-key-2,client-api-key
+# ALLOWED_ORIGINS=https://yourapp.com,https://admin.yourapp.com
+# DETAILED_ERRORS=false
+
+# -------------------------
+# Security Notes
+# -------------------------
+# 1. Never commit your actual .env file to version control
+# 2. Generate strong API keys using: openssl rand -hex 32
+# 3. Use different API keys for development and production
+# 4. Enable SSL (DB_SSL=true) for production databases
+# 5. Restrict ALLOWED_ORIGINS to your actual domains in production 
