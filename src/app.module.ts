@@ -1,11 +1,11 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
 import { DynamicQueryModule } from './dynamic-query/dynamic-query.module';
 import { SecurityModule } from './security/security.module';
 import { SecurityMiddleware } from './security/security.middleware';
+import { AgentLogComponent } from './common/agentlog.component';
 
 @Module({
   imports: [
@@ -18,7 +18,7 @@ import { SecurityMiddleware } from './security/security.middleware';
     SecurityModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AgentLogComponent],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
