@@ -19,21 +19,7 @@ export class SecurityMiddleware implements NestMiddleware {
     // Remove server information
     res.removeHeader('X-Powered-By');
 
-    // Set CORS headers for specific origins
-    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
-      'http://localhost:3001',
-      'http://localhost:3002',
-      'http://localhost:8080'
-    ];
-    const origin = req.headers.origin;
-    
-    if (origin && allowedOrigins.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key, Authorization');
-      res.setHeader('Access-Control-Max-Age', '86400');
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-    }
+    // CORS is now handled by NestJS built-in CORS in main.ts
 
     // Handle preflight requests
     if (req.method === 'OPTIONS') {

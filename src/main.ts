@@ -7,7 +7,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const port = process.env.PORT || 4000;
   
-  // Security configurations
+  // Security configurations - disable CORS-related headers to let SecurityMiddleware handle CORS
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
@@ -22,12 +22,14 @@ async function bootstrap() {
       maxAge: 31536000,
       includeSubDomains: true,
       preload: true
-    }
+    },
+    crossOriginOpenerPolicy: false,  // Disable to allow SecurityMiddleware to handle CORS
+    crossOriginResourcePolicy: false,  // Disable to allow SecurityMiddleware to handle CORS
   }));
 
   // Enable CORS with specific origins
   app.enableCors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:4001'],
+    origin: ['http://localhost:3000', 'http://localhost:4001'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'X-API-Key', 'Authorization'],
     credentials: true,
